@@ -6,7 +6,8 @@ import { MessageServices } from './message.service';
 // Send message controller
 const sendMessage = catchAsync(async (req, res) => {
   const senderId = req.user.id
-  const result = await MessageServices.sendMessage(senderId, req.body);
+  const files = req.files
+  const result = await MessageServices.sendMessage(senderId, req.body, files as Express.Multer.File[] | undefined);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     message: 'Message sent successfully',

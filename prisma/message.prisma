@@ -3,6 +3,7 @@ model Message {
     senderId   String   @db.ObjectId
     receiverId String   @db.ObjectId
     content    String
+    fileUrls   String[] @default([])
     isRead     Boolean  @default(false)
     createdAt  DateTime @default(now())
     updatedAt  DateTime @updatedAt

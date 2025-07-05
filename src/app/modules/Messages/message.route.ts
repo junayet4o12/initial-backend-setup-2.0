@@ -3,6 +3,8 @@ import validateRequest from '../../middlewares/validateRequest';
 import { MessageControllers } from './message.controller';
 import auth from '../../middlewares/auth';
 import { messageValidation } from './message.validation';
+import { upload } from '../../middlewares/upload';
+import { parseBody } from '../../middlewares/parseBody';
 
 const router = express.Router();
 
@@ -10,6 +12,8 @@ const router = express.Router();
 router.post(
   '/send',
   auth('USER', 'SUPERADMIN'),
+  upload.array('files'),
+  parseBody,
   validateRequest.body(messageValidation.sendMessage),
   MessageControllers.sendMessage
 );

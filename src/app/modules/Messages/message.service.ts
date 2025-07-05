@@ -3,14 +3,19 @@ import AppError from '../../errors/AppError';
 import prisma from '../../utils/prisma';
 import { Message } from '@prisma/client';
 import { getSocket } from '../../utils/socket';
+import { uploadFiles } from '../../utils/uploadFiles';
 
 
 // Send message between two users
-const sendMessage = async (senderId: string, payload: Message) => {
+const sendMessage = async (senderId: string, payload: Message, files: Express.Multer.File[] | undefined,) => {
     // Check if both users exist
     const time = new Date()
     payload.senderId = senderId
     await prisma.user.findUniqueOrThrow({ where: { id: payload.receiverId } })
+    if (files && files.length > 0) {
+        const urls = uploadFiles(files)
+        payload.fileUrls = urls;
+    }
 
     // Create message
     const message = await prisma.message.create({
