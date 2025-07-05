@@ -243,3 +243,40 @@ export const sendOtpViaMail = async (to: string, OTP: string) => {
   await sendEmail(to, html, 'Quirpleb: Verification OTP')
 
 }
+
+export const sendLinkViaMail = async (to: string, link: string) => {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verification Link</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f6f9fc; margin: 0; padding: 0; line-height: 1.6;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
+    <div style="background-color: #FF7600; background-image: linear-gradient(135deg, #FF7600, #45a049); padding: 30px 20px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 600;">Action Required</h1>
+    </div>
+    <div style="padding: 20px 12px; text-align: center;">
+      <p style="font-size: 18px; color: #333333; margin-bottom: 20px;">
+        Please click the button below to proceed with your request.
+      </p>
+      <a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #FF7600; color: #fff; font-size: 16px; font-weight: bold; text-decoration: none; border-radius: 6px;">
+        CONTINUE
+      </a>
+      <p style="margin-top: 20px; font-size: 14px; color: #555555;">If the button doesn't work, copy and paste the following link into your browser:</p>
+      <p style="font-size: 14px; color: #007bff; word-wrap: break-word;">
+        <a href="${link}" style="color: #007bff; text-decoration: none;">${link}</a>
+      </p>
+      <p style="margin-top: 20px; font-size: 14px; color: #999;">This link will expire in 1 hour.</p>
+    </div>
+    <div style="background-color: #f9f9f9; padding: 10px; text-align: center; font-size: 12px; color: #999999;">
+      <p style="margin: 0;">© ${new Date().getFullYear()} Quirpleb. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  await sendEmail(to, html, 'Quirpleb: Verification Link');
+};
+

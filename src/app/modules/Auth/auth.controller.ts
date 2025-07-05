@@ -4,7 +4,7 @@ import sendResponse from '../../utils/sendResponse';
 import { AuthServices } from './auth.service';
 
 const loginUser = catchAsync(async (req, res) => {
-  const result = await AuthServices.loginUserFromDB(res,req.body);
+  const result = await AuthServices.loginUserFromDB(res, req.body, false);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     message: 'User logged in successfully',
@@ -13,22 +13,12 @@ const loginUser = catchAsync(async (req, res) => {
 });
 
 const registerUser = catchAsync(async (req, res) => {
-  const result = await AuthServices.registerUserIntoDB(req.body);
+  const result = await AuthServices.registerUserIntoDB(req.body, false);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     message:
-      'User registered successfully. Please check your email for the verification link.',
-    data: result,
-  });
-});
-
-const resendUserVerificationEmail = catchAsync(async (req, res) => {
-  const { email } = req.body;
-  const result = await AuthServices.resendUserVerificationEmail(email);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    message: 'Verification email sent successfully',
+      'User Created Successfully',
     data: result,
   });
 });
@@ -54,8 +44,12 @@ const forgetPassword = catchAsync(async (req, res) => {
   });
 });
 const verifyMail = catchAsync(async (req, res) => {
-  const result = await AuthServices.verifyMail(req.body);
 
+  // verify mail by token 
+  const result = await AuthServices.verifyMailByToken(req.body);
+
+  // verify mail by otp 
+  // const result = await AuthServices.verifyMail(req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     message: 'Mail Verified',
@@ -64,6 +58,17 @@ const verifyMail = catchAsync(async (req, res) => {
 });
 const verifyForgotPassOtp = catchAsync(async (req, res) => {
   const result = await AuthServices.verifyForgotPassOtp(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: ' Otp has verified.!',
+    data: result,
+  });
+});
+
+const resendVerificationEmail = catchAsync(async (req, res) => {
+  const email = req.body.email
+  const result = await AuthServices.resendVerificationEmail(email, false);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -88,9 +93,9 @@ export const AuthControllers = {
   loginUser,
   registerUser,
   changePassword,
-  resendUserVerificationEmail,
   forgetPassword,
   verifyForgotPassOtp,
   resetPassword,
-  verifyMail
+  verifyMail,
+  resendVerificationEmail
 };

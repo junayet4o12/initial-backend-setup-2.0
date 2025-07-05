@@ -21,12 +21,11 @@ router.post(
   validateRequest.body(authValidation.verifyOtpValidationSchema),
   AuthControllers.verifyMail,
 );
-
 router.post(
   '/resend-verification-email',
-  AuthControllers.resendUserVerificationEmail,
+  validateRequest.body(authValidation.forgetPasswordValidationSchema),
+  AuthControllers.resendVerificationEmail,
 );
-
 
 
 router.post(

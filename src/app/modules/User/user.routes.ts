@@ -1,10 +1,10 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
 import { UserControllers } from './user.controller';
-import { fileUploader } from '../../utils/fileUploader';
 import { parseBody } from '../../middlewares/parseBody';
 import validateRequest from '../../middlewares/validateRequest';
 import { userValidation } from './user.validation';
+import { upload } from '../../middlewares/upload';
 const router = express.Router();
 
 
@@ -16,7 +16,7 @@ router.get('/:id', UserControllers.getUserDetails);
 router.put(
   '/update-profile',
   auth('USER', 'SUPERADMIN'),
-  fileUploader.uploadSingle,
+  upload.single('image'),
   parseBody,
   validateRequest.body(userValidation.updateUser),
   UserControllers.updateMyProfile,
