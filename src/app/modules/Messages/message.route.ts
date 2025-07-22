@@ -11,7 +11,7 @@ const router = express.Router();
 // Send message
 router.post(
   '/send',
-  auth('USER', 'SUPERADMIN'),
+  auth('ANY'),
   upload.array('files'),
   parseBody,
   validateRequest.body(messageValidation.sendMessage),
@@ -20,22 +20,27 @@ router.post(
 
 // Get conversation between two users
 router.get(
+  '/user-list',
+  auth('ANY'),
+  MessageControllers.getMessageUserList
+);
+router.get(
   '/conversation/:id',
-  auth('USER', 'SUPERADMIN'),
+  auth('ANY'),
   MessageControllers.getConversation
 );
 
 // Mark message as read
 router.patch(
   '/mark-read/:messageId',
-  auth('USER', 'SUPERADMIN'),
+  auth('ANY'),
   MessageControllers.markMessageAsRead
 );
 
 // Delete message
 router.delete(
   '/delete/:messageId',
-  auth('USER', 'SUPERADMIN'),
+  auth('ANY'),
   MessageControllers.deleteMessage
 );
 

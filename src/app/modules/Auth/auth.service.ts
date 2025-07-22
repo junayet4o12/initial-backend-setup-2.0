@@ -14,10 +14,11 @@ import { verifyOtp } from '../../utils/verifyOtp';
 import sendResponse from '../../utils/sendResponse';
 import { verifyToken } from '../../utils/verifyToken';
 import { generateToken } from '../../utils/generateToken';
-const loginUserFromDB = async (res: Response, payload: {
+
+const loginWithOtpFromDB = async (res: Response, payload: {
   email: string;
   password: string;
-}, verifyByOtp: boolean = true) => {
+}) => {
   const userData = await prisma.user.findUniqueOrThrow({
     where: {
       email: payload.email,
@@ -35,6 +36,61 @@ const loginUserFromDB = async (res: Response, payload: {
   if (userData.role !== 'SUPERADMIN' && !userData.isEmailVerified) {
     const otp = generateOTP();
 
+    await prisma.user.update({
+      where: { email: userData.email },
+      data: {
+        otp,
+        otpExpiry: otpExpiryTime(),
+      },
+    })
+    sendOtpViaMail(payload.email, otp);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      message: ' Please check your email for the verification OTP.',
+      data: '',
+    });
+
+  } else {
+    const accessToken = await generateToken(
+      {
+        id: userData.id,
+        name: userData.firstName + ' ' + userData.lastName,
+        email: userData.email,
+        role: userData.role,
+      },
+      config.jwt.access_secret as Secret,
+      config.jwt.access_expires_in as SignOptions['expiresIn'],
+    );
+    return {
+      id: userData.id,
+      name: userData.firstName + ' ' + userData.lastName,
+      email: userData.email,
+      role: userData.role,
+      accessToken: accessToken,
+    };
+  }
+};
+
+const loginFromDB = async (res: Response, payload: {
+  email: string;
+  password: string;
+}) => {
+  const userData = await prisma.user.findUniqueOrThrow({
+    where: {
+      email: payload.email,
+    },
+  });
+  const isCorrectPassword: Boolean = await bcrypt.compare(
+    payload.password,
+    userData.password,
+  );
+
+  if (!isCorrectPassword) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
+  }
+
+  if (userData.role !== 'SUPERADMIN' && !userData.isEmailVerified) {
     const verificationToken = generateToken(
       {
         id: 'email-verification-token',
@@ -46,31 +102,17 @@ const loginUserFromDB = async (res: Response, payload: {
       config.jwt.access_expires_in as SignOptions['expiresIn'],
     );
 
-    if (verifyByOtp) {
+    const link = `${config.base_url_client}/auth/verifyMail?token=${verificationToken}`
 
-      await prisma.user.update({
-        where: { email: userData.email },
-        data: {
-          otp,
-          otpExpiry: otpExpiryTime(),
-        },
-      })
-      sendOtpViaMail(payload.email, otp);
+    await prisma.user.update({
+      where: { email: userData.email },
+      data: {
+        emailVerificationToken: verificationToken,
+        emailVerificationTokenExpires: otpExpiryTime(),
+      },
+    })
+    sendLinkViaMail(payload.email, link)
 
-    } else {
-
-      const link = `${config.base_url_client}/auth/verifyMail?token=${verificationToken}`
-
-      await prisma.user.update({
-        where: { email: userData.email },
-        data: {
-          emailVerificationToken: verificationToken,
-          emailVerificationTokenExpires: otpExpiryTime(),
-        },
-      })
-      sendLinkViaMail(payload.email, link)
-
-    }
     sendResponse(res, {
       statusCode: httpStatus.OK,
       message: ' Please check your email for the verification link.',
@@ -96,11 +138,9 @@ const loginUserFromDB = async (res: Response, payload: {
       accessToken: accessToken,
     };
   }
-
-
 };
 
-const registerUserIntoDB = async (payload: User, verifyByOtp: boolean = true) => {
+const registerWithOtpIntoDB = async (payload: User) => {
   const hashedPassword: string = await bcrypt.hash(payload.password, 12);
 
   const isUserExistWithTheGmail = await prisma.user.findUnique({
@@ -117,8 +157,44 @@ const registerUserIntoDB = async (payload: User, verifyByOtp: boolean = true) =>
     throw new AppError(httpStatus.CONFLICT, 'User already exists');
   }
 
-  let userData: User
   const otp = generateOTP();
+  const userData: User = {
+    ...payload,
+    password: hashedPassword,
+    otp,
+    otpExpiry: otpExpiryTime(),
+  };
+
+  const newUser = await prisma.user.create({
+    data: userData,
+  });
+
+  try {
+    sendOtpViaMail(newUser.email, otp);
+  } catch {
+    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send OTP email');
+  }
+
+  return 'Please check mail to verify your email'
+};
+
+const registerIntoDB = async (payload: User) => {
+  const hashedPassword: string = await bcrypt.hash(payload.password, 12);
+
+  const isUserExistWithTheGmail = await prisma.user.findUnique({
+    where: {
+      email: payload.email,
+    },
+    select: {
+      id: true,
+      email: true,
+    },
+  });
+
+  if (isUserExistWithTheGmail?.id) {
+    throw new AppError(httpStatus.CONFLICT, 'User already exists');
+  }
+
   const verificationToken = generateToken(
     {
       id: 'email-verification-token',
@@ -129,43 +205,28 @@ const registerUserIntoDB = async (payload: User, verifyByOtp: boolean = true) =>
     config.jwt.access_secret as Secret,
     config.jwt.access_expires_in as SignOptions['expiresIn'],
   );
-  if (verifyByOtp) {
 
-    userData = {
-      ...payload,
-      password: hashedPassword,
-      otp,
-      otpExpiry: otpExpiryTime(),
-    };
-  } else {
-    userData = {
-      ...payload,
-      password: hashedPassword,
-      emailVerificationToken: verificationToken,
-    }
+  const userData: User = {
+    ...payload,
+    password: hashedPassword,
+    emailVerificationToken: verificationToken,
   }
-
 
   const newUser = await prisma.user.create({
     data: userData,
   });
 
   try {
-    if (verifyByOtp) {
-      sendOtpViaMail(newUser.email, otp);
-    } else {
-
-      const link = `${config.base_url_client}/auth/verifyMail?token=${verificationToken}`
-      sendLinkViaMail(newUser.email, link)
-    }
+    const link = `${config.base_url_client}/auth/verifyMail?token=${verificationToken}`
+    sendLinkViaMail(newUser.email, link)
   } catch {
-    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send OTP email');
+    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send verification link');
   }
 
   return 'Please check mail to verify your email'
 };
 
-const verifyMail = async (payload: { email: string; otp: string }) => {
+const verifyEmailWithOtp = async (payload: { email: string; otp: string }) => {
   const { userData } = await verifyOtp(payload);
   await prisma.user.update({
     where: {
@@ -202,7 +263,7 @@ const verifyMail = async (payload: { email: string; otp: string }) => {
   };
 }
 
-const verifyMailByToken = async (payload: { token: string }) => {
+const verifyEmail = async (payload: { token: string }) => {
   const verifyUserToken = verifyToken(
     payload.token,
     config.jwt.access_secret as Secret,
@@ -212,7 +273,6 @@ const verifyMailByToken = async (payload: { token: string }) => {
     throw new AppError(httpStatus.FORBIDDEN, 'Invalid Token')
   }
 
-  // Check user is exist
   const user = await prisma.user.findUniqueOrThrow({
     where: {
       email: verifyUserToken.email,
@@ -252,7 +312,7 @@ const verifyMailByToken = async (payload: { token: string }) => {
   };
 }
 
-const resendVerificationEmail = async (email: string, verifyByOtp: boolean = true) => {
+const resendVerificationWithOtp = async (email: string) => {
   const user = await prisma.user.findFirstOrThrow({
     where: {
       email,
@@ -268,6 +328,42 @@ const resendVerificationEmail = async (email: string, verifyByOtp: boolean = tru
   }
 
   const otp = generateOTP();
+  const expiry = otpExpiryTime();
+
+  await prisma.user.update({
+    where: { email },
+    data: {
+      otp,
+      otpExpiry: expiry,
+      emailVerificationToken: null,
+      emailVerificationTokenExpires: null,
+    },
+  });
+
+  try {
+    await sendOtpViaMail(email, otp);
+  } catch {
+    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send OTP email');
+  }
+
+  return { message: 'Verification OTP sent successfully. Please check your inbox.' };
+};
+
+const resendVerification = async (email: string) => {
+  const user = await prisma.user.findFirstOrThrow({
+    where: {
+      email,
+    },
+  });
+
+  if (user.status === 'BLOCKED') {
+    throw new AppError(httpStatus.FORBIDDEN, 'User is blocked');
+  }
+
+  if (user.isEmailVerified) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Email is already verified');
+  }
+
   const verificationToken = generateToken(
     {
       id: 'email-verification-token',
@@ -279,48 +375,26 @@ const resendVerificationEmail = async (email: string, verifyByOtp: boolean = tru
     config.jwt.access_expires_in as SignOptions['expiresIn']
   );
 
-  if (verifyByOtp) {
-    const expiry = otpExpiryTime();
+  const link = `${config.base_url_client}/auth/verifyMail?token=${verificationToken}`;
 
-    await prisma.user.update({
-      where: { email },
-      data: {
-        otp,
-        otpExpiry: expiry,
-        emailVerificationToken: null,
-        emailVerificationTokenExpires: null,
-      },
-    });
+  await prisma.user.update({
+    where: { email },
+    data: {
+      emailVerificationToken: verificationToken,
+      emailVerificationTokenExpires: otpExpiryTime(),
+      otp: null,
+      otpExpiry: null,
+    },
+  });
 
-    try {
-      await sendOtpViaMail(email, otp);
-    } catch {
-      throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send OTP email');
-    }
-
-  } else {
-    const link = `${config.base_url_client}/auth/verifyMail?token=${verificationToken}`;
-
-    await prisma.user.update({
-      where: { email },
-      data: {
-        emailVerificationToken: verificationToken,
-        emailVerificationTokenExpires: otpExpiryTime(),
-        otp: null,
-        otpExpiry: null,
-      },
-    });
-
-    try {
-      await sendLinkViaMail(email, link);
-    } catch {
-      throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send verification link');
-    }
+  try {
+    await sendLinkViaMail(email, link);
+  } catch {
+    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send verification link');
   }
 
-  return { message: 'Verification email sent successfully. Please check your inbox.' };
+  return { message: 'Verification link sent successfully. Please check your inbox.' };
 };
-
 
 const changePassword = async (user: any, payload: any) => {
   const userData = await prisma.user.findUniqueOrThrow({
@@ -404,12 +478,11 @@ const forgetPassword = async (email: string) => {
     throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to send OTP');
   }
 }
+
 const verifyForgotPassOtp = async (payload: { email: string; otp: string }) => {
 
   const { userData } = await verifyOtp(payload)
 
-
-  // Create token for password reset
   const resetToken = generateToken(
     {
       id: userData.id,
@@ -423,7 +496,6 @@ const verifyForgotPassOtp = async (payload: { email: string; otp: string }) => {
 
   const resetUILink = `${config.base_url_client}/auth/reset-password?email=${userData.email}&token=${resetToken}`;
 
-  // Prisma transaction
   await prisma.user.update({
     where: {
       email: payload.email,
@@ -462,8 +534,6 @@ const resetPassword = async (payload: {
     throw new AppError(httpStatus.FORBIDDEN, 'You are forbidden!')
   }
 
-
-
   if (!decoded || !decoded.exp) {
     throw new AppError(httpStatus.UNAUTHORIZED, 'Invalid token');
   }
@@ -480,18 +550,17 @@ const resetPassword = async (payload: {
   })
 }
 
-
-
 export const AuthServices = {
-  loginUserFromDB,
-  registerUserIntoDB,
+  loginWithOtpFromDB,
+  loginFromDB,
+  registerWithOtpIntoDB,
+  registerIntoDB,
+  verifyEmailWithOtp,
+  verifyEmail,
+  resendVerificationWithOtp,
+  resendVerification,
   changePassword,
   forgetPassword,
   verifyForgotPassOtp,
-  resetPassword,
-  verifyMail,
-  verifyMailByToken,
-  resendVerificationEmail
+  resetPassword
 };
-
-

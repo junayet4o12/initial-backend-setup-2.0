@@ -10,13 +10,14 @@ model User {
   otp       String?
   otpExpiry DateTime?
 
-  isEmailVerified               Boolean   @default(false)
+  isEmailVerified               Boolean                 @default(false)
   emailVerificationToken        String?
   emailVerificationTokenExpires DateTime?
-  sentMessages                  Message[] @relation("SentMessages")
-  receivedMessages              Message[] @relation("ReceivedMessages")
-  createdAt                     DateTime  @default(now())
-  updatedAt                     DateTime  @updatedAt
+  sentMessages                  Message[]               @relation("SentMessages")
+  receivedMessages              Message[]               @relation("ReceivedMessages")
+  notifications                 NotificationUser[]
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
 
   @@map("users")
 }

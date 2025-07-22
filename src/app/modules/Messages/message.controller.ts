@@ -16,6 +16,21 @@ const sendMessage = catchAsync(async (req, res) => {
 });
 
 // Get conversation between two users
+const getMessageUserList = catchAsync(async (req, res) => {
+  const me = req.user.id
+  const searchTerm = req.query.searchTerm || '';
+
+  const result = await MessageServices.getMessageUserList(
+    me as string,
+    searchTerm as string
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'User list fetched successfully',
+    data: result,
+  });
+});
 const getConversation = catchAsync(async (req, res) => {
   const me = req.user.id
   const other = req.params.id;
@@ -71,4 +86,5 @@ export const MessageControllers = {
   getConversation,
   markMessageAsRead,
   deleteMessage,
+  getMessageUserList
 };
