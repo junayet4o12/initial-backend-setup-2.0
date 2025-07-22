@@ -1,5 +1,5 @@
 import httpStatus from 'http-status';
-import { notificationServices } from '../notification/notification.service';
+import { notificationServices } from '../Notification/notification.service';
 import { uploadToDigitalOceanAWS } from '../../utils/uploadToDigitalOceanAWS';
 import { Message } from '@prisma/client';
 import prisma from '../../utils/prisma';
